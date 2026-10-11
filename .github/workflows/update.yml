@@ -1,0 +1,38 @@
+# Récupère les séances chaque matin, les enregistre dans le dépôt et publie le site sur GitHub Pages.
+name: Mise à jour des séances
+on:
+  schedule: [{ cron: "0 5 * * *" }]   # 7h heure de Paris (été), 6h (hiver)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: [data.json, "posters/**"]
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.deploy.outputs.page_url }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Récupérer les séances
+        run: python scrape.py 7
+      - name: Enregistrer les données
+        run: |
+          git config user.name "lille-cine"
+          git config user.email "lille-cine@users.noreply.github.com"
+          git add data.json posters
+          git diff --cached --quiet || { git commit -m "Séances du $(date +%F)" && git push; }
+      - name: Construire le site
+        run: |
+          mkdir _site
+          { printf '<!doctype html>\n<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0">\n'; cat index.html; printf '\n</body></html>\n'; } > _site/index.html
+          cp -r data.json posters _site/
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - id: deploy
+        uses: actions/deploy-pages@v4

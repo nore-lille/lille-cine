@@ -1,0 +1,501 @@
+<title>Lille Ciné</title>
+<meta name="description" content="Toutes les séances de cinéma de la métropole lilloise, au même endroit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<style>
+/* Layout : bandeau-marquise en haut, barre de filtres collante, puis une liste dense de films
+   (une ligne = un film, dépliable en grille de séances jour × cinéma). */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --sunk: #eceef2;
+  --fg: #151820;
+  --muted: #5c6270;
+  --line: #dde0e6;
+  --accent: #b3122a;          /* rouge des armoiries de Lille */
+  --accent-fg: #ffffff;
+  --accent-soft: #f8e3e6;
+  --gold: #a3720b;
+  --past: #a7acb6;
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1116; --surface: #171a21; --sunk: #1f232c; --fg: #eef0f4; --muted: #9aa1ae;
+    --line: #2a2f3a; --accent: #ff5468; --accent-fg: #16070a; --accent-soft: #3a1820;
+    --gold: #e7b84a; --past: #535a67; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1116; --surface: #171a21; --sunk: #1f232c; --fg: #eef0f4; --muted: #9aa1ae;
+  --line: #2a2f3a; --accent: #ff5468; --accent-fg: #16070a; --accent-soft: #3a1820;
+  --gold: #e7b84a; --past: #535a67; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+a { color: inherit; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; }
+
+/* Marquise */
+header.top { background: var(--accent); color: var(--accent-fg); }
+header.top .wrap { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; padding-block: 18px 14px; }
+.logo { font-family: var(--font-display); font-weight: 800; font-size: 44px; line-height: .9; letter-spacing: .01em; text-transform: uppercase; margin: 0; display: flex; align-items: center; gap: 10px; }
+.logo svg { width: 30px; height: 34px; flex: none; }
+.tagline { font-size: 13px; opacity: .92; margin: 4px 0 0; }
+.stats { display: flex; gap: 18px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.stats b { display: block; font-family: var(--font-display); font-size: 24px; font-weight: 800; line-height: 1; }
+
+/* Onglets */
+nav.tabs { border-bottom: 1px solid var(--line); background: var(--surface); }
+nav.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 12px 14px 10px; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--fg); }
+
+/* Filtres */
+.filters { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.filters .wrap { display: grid; gap: 10px; padding-block: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.days { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap; font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip small { opacity: .7; margin-left: 3px; }
+.search { flex: 1 1 220px; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 7px 10px; }
+.sel { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 6px 8px; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+details.cine-pick { position: relative; }
+details.cine-pick summary { list-style: none; cursor: pointer; }
+details.cine-pick summary::-webkit-details-marker { display: none; }
+.pick-panel { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; width: min(560px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 10px 30px rgb(0 0 0 / .18); padding: 12px; display: grid; gap: 10px; }
+.pick-panel .grp { display: grid; gap: 4px; }
+.pick-panel h4 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.pick-panel .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-link { border: 0; background: none; color: var(--accent); cursor: pointer; font-weight: 600; padding: 2px 4px; }
+
+main { padding-block: 16px 48px; }
+.summary { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+.empty { padding: 48px 16px; text-align: center; color: var(--muted); }
+
+/* Liste des films */
+.films { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.film { background: var(--surface); }
+.film-head { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; cursor: pointer; width: 100%; border: 0; background: none; text-align: left; }
+.film-head:hover { background: var(--sunk); }
+.poster { width: 46px; height: 62px; border-radius: 3px; object-fit: cover; background: var(--sunk); display: block; }
+.ftitle { font-family: var(--font-display); font-weight: 800; font-size: 21px; line-height: 1.05; text-transform: uppercase; letter-spacing: .01em; text-wrap: balance; }
+.fot { font-size: 12px; color: var(--muted); font-style: italic; }
+.fmeta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.fmeta b { color: var(--fg); font-weight: 600; }
+.nums { display: flex; gap: 16px; align-items: center; font-variant-numeric: tabular-nums; text-align: right; }
+.num { display: grid; justify-items: end; min-width: 44px; }
+.num .k { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.num .v { font-weight: 700; font-size: 15px; }
+.stars { color: var(--gold); }
+.badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); vertical-align: 3px; margin-left: 6px; font-family: var(--font-body); }
+.fav { border: 0; background: none; cursor: pointer; font-size: 18px; color: var(--past); padding: 4px; line-height: 1; }
+.fav[aria-pressed="true"] { color: var(--accent); }
+
+.film-body { padding: 4px 12px 16px 70px; display: grid; gap: 12px; }
+.syn { max-width: 70ch; margin: 0; color: var(--fg); }
+.facts { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.facts a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.sched { display: grid; gap: 10px; }
+.sday h5 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.srow { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 4px 12px; padding: 4px 0; border-top: 1px dashed var(--line); align-items: baseline; }
+.sname { font-weight: 600; font-size: 13px; }
+.sname small { display: block; font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.times { display: flex; flex-wrap: wrap; gap: 6px; }
+.t { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; background: var(--bg); }
+a.t:hover { border-color: var(--accent); color: var(--accent); }
+.t i { font-style: normal; font-weight: 700; font-size: 10px; color: var(--accent); margin-left: 4px; letter-spacing: .03em; }
+.t.past { color: var(--past); text-decoration: line-through; border-style: dashed; }
+
+/* Vue cinémas */
+.cines { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 14px; }
+.cine { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.cine h3 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 800; text-transform: uppercase; line-height: 1; }
+.cine .city { color: var(--muted); font-size: 12px; }
+.cine .cf { display: grid; gap: 3px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.cine .cf .n { font-weight: 600; cursor: pointer; }
+.cine .cf .n:hover { color: var(--accent); }
+
+/* Vue horaires */
+.timeline { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.hour { display: grid; grid-template-columns: 64px minmax(0, 1fr); border-top: 1px solid var(--line); }
+.hour:first-child { border-top: 0; }
+.hour > .h { font-family: var(--font-display); font-weight: 800; font-size: 26px; padding: 8px 10px; color: var(--accent); background: var(--sunk); font-variant-numeric: tabular-nums; }
+.hour ul { list-style: none; margin: 0; padding: 4px 0; }
+.hour li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; padding: 5px 12px; align-items: baseline; }
+.hour li .tm { font-weight: 700; font-variant-numeric: tabular-nums; }
+.hour li .who { font-weight: 600; cursor: pointer; }
+.hour li .who:hover { color: var(--accent); }
+.hour li .where { color: var(--muted); font-size: 12.5px; }
+
+footer { color: var(--muted); font-size: 12px; padding-block: 24px; border-top: 1px solid var(--line); }
+
+@media (max-width: 640px) {
+  .logo { font-size: 36px; }
+  .nums .num.opt { display: none; }
+  .film-body { padding-left: 12px; }
+  .srow { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .film-body { animation: open .18s ease-out; }
+  @keyframes open { from { opacity: .3; transform: translateY(-3px); } }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div>
+      <h1 class="logo">
+        <svg viewBox="0 0 30 34" aria-hidden="true"><path fill="currentColor" d="M15 0c3 4 4 8 2.6 12.4 2-1.7 5-2.4 7.6-1.4 3 1.2 4.6 4.3 3.6 7.2-.8-2-2.5-3.2-4.4-3.2-2.4 0-4.4 1.6-5.6 4h-1.4v3h5v2.6h-5V34h-4.8V24.6h-5V22h5v-3h-1.4c-1.2-2.4-3.2-4-5.6-4-1.9 0-3.6 1.2-4.4 3.2-1-2.9.6-6 3.6-7.2 2.6-1 5.6-.3 7.6 1.4C11 8 12 4 15 0z"/></svg>
+        Lille Ciné
+      </h1>
+      <p class="tagline">Toutes les séances de la métropole lilloise, au même endroit.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Vues">
+  <div class="wrap" role="tablist" id="tabs">
+    <button class="tab" role="tab" data-tab="tous">Tous les films</button>
+    <button class="tab" role="tab" data-tab="nouveautes">Nouveautés</button>
+    <button class="tab" role="tab" data-tab="classiques">Classiques</button>
+    <button class="tab" role="tab" data-tab="avp">Avant-premières</button>
+    <button class="tab" role="tab" data-tab="favoris">Mes favoris</button>
+    <button class="tab" role="tab" data-tab="horaires">Par horaire</button>
+    <button class="tab" role="tab" data-tab="cinemas">Par cinéma</button>
+  </div>
+</nav>
+
+<section class="filters" aria-label="Filtres">
+  <div class="wrap">
+    <div class="days" id="days"></div>
+    <div class="row">
+      <input id="q" class="search" type="search" placeholder="Film, réalisateur·rice, acteur·rice…" aria-label="Rechercher">
+      <details class="cine-pick" id="cinePick">
+        <summary class="chip" id="cineSummary">Tous les cinémas</summary>
+        <div class="pick-panel" id="cinePanel"></div>
+      </details>
+      <select id="hour" class="sel" aria-label="Heure">
+        <option value="0">Toute la journée</option>
+        <option value="12">À partir de 12h</option>
+        <option value="18">À partir de 18h</option>
+        <option value="20">À partir de 20h</option>
+      </select>
+      <select id="sort" class="sel" aria-label="Trier par">
+        <option value="n">Tri : nb de séances</option>
+        <option value="ps">Tri : note presse</option>
+        <option value="us">Tri : note spectateurs</option>
+        <option value="r">Tri : date de sortie</option>
+        <option value="y">Tri : année</option>
+        <option value="t">Tri : titre</option>
+      </select>
+      <label class="toggle"><input type="checkbox" id="vo"> VO uniquement</label>
+      <label class="toggle"><input type="checkbox" id="hidePast" checked> Masquer les séances passées</label>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+  <p class="summary" id="summary"></p>
+  <div id="view"></div>
+</main>
+
+<footer>
+  <div class="wrap" id="foot">Séances issues d'AlloCiné. Vérifiez toujours les horaires auprès du cinéma avant de vous déplacer.</div>
+</footer>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("lc:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("lc:" + k, JSON.stringify(v)); } catch {} },
+  };
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  const parisNow = () => new Date().toLocaleString("sv-SE", { timeZone: "Europe/Paris" }).replace(" ", "T").slice(0, 16);
+  const DOW = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+  const MON = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  const dayLabel = (iso, today) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const t = new Date(today + "T00:00:00Z");
+    const diff = Math.round((dt - t) / 864e5);
+    const base = `${DOW[dt.getUTCDay()]} ${d} ${MON[m - 1]}`;
+    return diff === 0 ? "Aujourd'hui" : diff === 1 ? "Demain" : base;
+  };
+  const score = (v) => (v == null ? "–" : v.toFixed(1).replace(".", ","));
+
+  let D, cityOf = {};
+  const state = {
+    tab: store.get("tab", "tous"),
+    day: "semaine",
+    q: "",
+    cines: new Set(store.get("cines", [])),   // vide = tous
+    hour: 0,
+    sort: store.get("sort", "n"),
+    vo: store.get("vo", false),
+    hidePast: true,
+    open: new Set(),
+    favs: new Set(store.get("favs", [])),
+  };
+  if (!["tous", "nouveautes", "classiques", "avp", "favoris", "horaires", "cinemas"].includes(state.tab)) state.tab = "tous";
+
+  async function boot() {
+    try {
+      const r = await fetch("data.json", { cache: "no-cache" });
+      if (!r.ok) throw new Error(r.status);
+      D = await r.json();
+    } catch (e) {
+      $("#view").innerHTML = `<div class="empty">Impossible de charger les séances (data.json). Lancez <code>python scrape.py</code> puis rechargez la page.</div>`;
+      return;
+    }
+    for (const [id, c] of Object.entries(D.cinemas)) cityOf[id] = c.v;
+    const upd = new Date(D.updated);
+    $("#foot").innerHTML = `Séances issues d'AlloCiné, mises à jour le ${upd.toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" })}. Vérifiez toujours les horaires auprès du cinéma avant de vous déplacer.`;
+    buildCinePanel();
+    bindControls();
+    render();
+  }
+
+  function buildCinePanel() {
+    const byCity = {};
+    for (const [id, c] of Object.entries(D.cinemas)) (byCity[c.v] ||= []).push([id, c.n]);
+    const cities = Object.keys(byCity).sort((a, b) => (a === "Lille" ? -1 : b === "Lille" ? 1 : a.localeCompare(b, "fr")));
+    $("#cinePanel").innerHTML = cities.map((city) => `
+      <div class="grp"><h4>${esc(city)}</h4><div class="opts">${byCity[city].map(([id, n]) =>
+        `<button class="chip" data-cine="${id}" aria-pressed="${state.cines.has(id)}">${esc(n)}</button>`).join("")}</div></div>`).join("") +
+      `<div class="pick-actions"><button class="btn-link" id="cineAll">Tous les cinémas</button><button class="btn-link" id="cineLille">Lille intra-muros</button></div>`;
+  }
+
+  function bindControls() {
+    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { state.tab = b.dataset.tab; store.set("tab", state.tab); render(); }));
+    $("#q").addEventListener("input", (e) => { state.q = norm(e.target.value.trim()); render(); });
+    $("#hour").addEventListener("change", (e) => { state.hour = +e.target.value; render(); });
+    $("#sort").value = state.sort;
+    $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; store.set("sort", state.sort); render(); });
+    $("#vo").checked = state.vo;
+    $("#vo").addEventListener("change", (e) => { state.vo = e.target.checked; store.set("vo", state.vo); render(); });
+    $("#hidePast").addEventListener("change", (e) => { state.hidePast = e.target.checked; render(); });
+    $("#cinePanel").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-cine]");
+      if (b) { const id = b.dataset.cine; state.cines.has(id) ? state.cines.delete(id) : state.cines.add(id); }
+      else if (e.target.id === "cineAll") state.cines.clear();
+      else if (e.target.id === "cineLille") state.cines = new Set(Object.keys(D.cinemas).filter((id) => cityOf[id] === "Lille"));
+      else return;
+      store.set("cines", [...state.cines]);
+      document.querySelectorAll("#cinePanel [data-cine]").forEach((x) => x.setAttribute("aria-pressed", state.cines.has(x.dataset.cine)));
+      render();
+    });
+    document.addEventListener("click", (e) => { if (!e.target.closest("#cinePick")) $("#cinePick").open = false; });
+    $("#days").addEventListener("click", (e) => { const b = e.target.closest("[data-day]"); if (b) { state.day = b.dataset.day; render(); } });
+    $("#view").addEventListener("click", onViewClick);
+  }
+
+  function onViewClick(e) {
+    const fav = e.target.closest("[data-fav]");
+    if (fav) {
+      e.stopPropagation();
+      const id = fav.dataset.fav;
+      state.favs.has(id) ? state.favs.delete(id) : state.favs.add(id);
+      store.set("favs", [...state.favs]);
+      render();
+      return;
+    }
+    const go = e.target.closest("[data-goto]");
+    if (go) {
+      state.tab = "tous"; state.q = ""; $("#q").value = ""; state.open = new Set([go.dataset.goto]);
+      render();
+      requestAnimationFrame(() => document.getElementById("f" + go.dataset.goto)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+      return;
+    }
+    const head = e.target.closest("[data-toggle]");
+    if (head) { const id = head.dataset.toggle; state.open.has(id) ? state.open.delete(id) : state.open.add(id); render(); }
+  }
+
+  // Séances retenues par les filtres (hors filtre de jour, appliqué ensuite)
+  function baseShows(now) {
+    return D.shows.filter((s) => {
+      if (state.cines.size && !state.cines.has(s.c)) return false;
+      if (state.vo && s.v !== "VO") return false;
+      if (state.hidePast && s.at < now) return false;
+      if (state.hour && +s.at.slice(11, 13) < state.hour) return false;
+      return true;
+    });
+  }
+
+  function matchQuery(f) {
+    if (!state.q) return true;
+    return norm([f.t, f.ot, ...(f.d || []), ...(f.c || [])].join(" ")).includes(state.q);
+  }
+
+  function render() {
+    const now = parisNow(), today = now.slice(0, 10);
+    document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === state.tab));
+    $("#cineSummary").textContent = state.cines.size === 0 ? "Tous les cinémas" : state.cines.size === 1 ? D.cinemas[[...state.cines][0]].n : `${state.cines.size} cinémas`;
+
+    const base = baseShows(now);
+    // Jours
+    const days = [...new Set(D.shows.map((s) => s.at.slice(0, 10)))].filter((d) => d >= today).sort();
+    if (state.day !== "semaine" && !days.includes(state.day)) state.day = "semaine";
+    if ((state.tab === "horaires" || state.tab === "cinemas") && state.day === "semaine") state.day = days[0] || today;
+    const countByDay = {};
+    base.forEach((s) => { const d = s.at.slice(0, 10); countByDay[d] = (countByDay[d] || 0) + 1; });
+    const weekOk = state.tab !== "horaires" && state.tab !== "cinemas";
+    $("#days").innerHTML = (weekOk ? `<button class="chip" data-day="semaine" aria-pressed="${state.day === "semaine"}">Toute la semaine</button>` : "") +
+      days.map((d) => `<button class="chip" data-day="${d}" aria-pressed="${state.day === d}">${dayLabel(d, today)}<small>${countByDay[d] || 0}</small></button>`).join("");
+
+    const shows = base.filter((s) => (state.day === "semaine" || s.at.startsWith(state.day)) && matchQuery(D.films[s.f]));
+    $("#stats").innerHTML = `<div><b>${Object.keys(D.cinemas).length}</b>cinémas</div><div><b>${new Set(D.shows.filter((s) => s.at >= now).map((s) => s.f)).size}</b>films à l'affiche</div><div><b>${D.shows.filter((s) => s.at >= now).length}</b>séances à venir</div>`;
+
+    if (state.tab === "horaires") return renderTimeline(shows, now);
+    if (state.tab === "cinemas") return renderCinemas(shows, now);
+    renderFilms(shows, now, today);
+  }
+
+  function renderFilms(shows, now, today) {
+    const by = new Map();
+    for (const s of shows) { if (!by.has(s.f)) by.set(s.f, []); by.get(s.f).push(s); }
+    const y = +today.slice(0, 4);
+    const sixWeeksAgo = new Date(Date.parse(today) - 42 * 864e5).toISOString().slice(0, 10);
+    const twoYearsAgo = `${y - 2}${today.slice(4)}`;
+    let ids = [...by.keys()].filter((id) => {
+      const f = D.films[id];
+      switch (state.tab) {
+        case "nouveautes": return f.r && f.r >= sixWeeksAgo;
+        case "classiques": return (f.r ? f.r < twoYearsAgo : false) || (f.y && f.y <= y - 2);
+        case "avp": return by.get(id).some((s) => s.ap);
+        case "favoris": return state.favs.has(id);
+        default: return true;
+      }
+    });
+    const key = state.sort;
+    ids.sort((a, b) => {
+      const A = D.films[a], B = D.films[b];
+      if (key === "t") return A.t.localeCompare(B.t, "fr");
+      if (key === "n") return by.get(b).length - by.get(a).length;
+      if (key === "r") return (B.r || "").localeCompare(A.r || "");
+      return (B[key] ?? -1) - (A[key] ?? -1);
+    });
+    const nShows = ids.reduce((n, id) => n + by.get(id).length, 0);
+    $("#summary").textContent = `${ids.length} film${ids.length > 1 ? "s" : ""} · ${nShows} séance${nShows > 1 ? "s" : ""}`;
+    if (!ids.length) {
+      $("#view").innerHTML = `<div class="empty">${state.tab === "favoris" ? "Aucun favori pour l'instant. Touchez ♥ à côté d'un film pour le retrouver ici." : "Aucune séance ne correspond à ces filtres."}</div>`;
+      return;
+    }
+    $("#view").innerHTML = `<div class="films">${ids.map((id) => filmRow(id, by.get(id), now, today)).join("")}</div>`;
+  }
+
+  function filmRow(id, list, now, today) {
+    const f = D.films[id];
+    const cines = new Set(list.map((s) => s.c)).size;
+    const open = state.open.has(id);
+    const relWeek = f.r && Math.abs(Date.parse(today) - Date.parse(f.r)) < 7 * 864e5 && f.r <= today;
+    const meta = [f.d?.length ? `de <b>${esc(f.d.join(", "))}</b>` : "", f.y, f.rt, f.g?.slice(0, 2).join(", ")].filter(Boolean).join(" · ");
+    return `<article class="film" id="f${id}">
+      <div class="film-head" role="button" tabindex="0" aria-expanded="${open}" data-toggle="${id}">
+        ${f.p ? `<img class="poster" loading="lazy" alt="" src="${esc(f.p)}">` : `<div class="poster"></div>`}
+        <div style="min-width:0">
+          <div class="ftitle">${esc(f.t)}${list.some((s) => s.ap) ? `<span class="badge">Avant-première</span>` : ""}${relWeek ? `<span class="badge">Sortie</span>` : ""}</div>
+          ${f.ot && f.ot !== f.t ? `<div class="fot">${esc(f.ot)}</div>` : ""}
+          <div class="fmeta">${meta}</div>
+        </div>
+        <div class="nums">
+          <div class="num opt"><span class="k">Presse</span><span class="v stars">${score(f.ps)}</span></div>
+          <div class="num opt"><span class="k">Public</span><span class="v stars">${score(f.us)}</span></div>
+          <div class="num"><span class="k">Séances</span><span class="v">${list.length}</span></div>
+          <div class="num opt"><span class="k">Salles</span><span class="v">${cines}</span></div>
+          <button class="fav" data-fav="${id}" aria-pressed="${state.favs.has(id)}" aria-label="Favori">♥</button>
+        </div>
+      </div>
+      ${open ? filmBody(id, f, list, now, today) : ""}
+    </article>`;
+  }
+
+  function filmBody(id, f, list, now, today) {
+    const days = new Map();
+    for (const s of list) {
+      const d = s.at.slice(0, 10);
+      if (!days.has(d)) days.set(d, new Map());
+      const m = days.get(d);
+      if (!m.has(s.c)) m.set(s.c, []);
+      m.get(s.c).push(s);
+    }
+    const facts = [
+      f.c?.length ? `Avec ${esc(f.c.join(", "))}` : "",
+      f.co?.length ? esc(f.co.join(", ")) : "",
+      f.r ? `Sortie le ${new Date(f.r + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}` : "",
+      f.uc ? `${f.uc} notes spectateurs` : "",
+      `<a href="https://www.allocine.fr/film/fichefilm_gen_cfilm=${id}.html" target="_blank" rel="noopener">Fiche AlloCiné ↗</a>`,
+      `<a href="https://letterboxd.com/search/${encodeURIComponent(f.ot || f.t)}/" target="_blank" rel="noopener">Letterboxd ↗</a>`,
+    ].filter(Boolean);
+    return `<div class="film-body">
+      ${f.syn ? `<p class="syn">${esc(f.syn)}</p>` : ""}
+      <div class="facts">${facts.map((x) => `<span>${x}</span>`).join("")}</div>
+      <div class="sched">${[...days].map(([d, m]) => `
+        <div class="sday"><h5>${dayLabel(d, today)}</h5>
+          ${[...m].sort((a, b) => D.cinemas[a[0]].n.localeCompare(D.cinemas[b[0]].n, "fr")).map(([c, ss]) => `
+            <div class="srow"><div class="sname">${esc(D.cinemas[c].n)}<small>${esc(D.cinemas[c].v)}</small></div>
+              <div class="times">${ss.map((s) => timeChip(s, now)).join("")}</div></div>`).join("")}
+        </div>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  function timeChip(s, now) {
+    const tag = [s.v, ...(s.fm || []), s.ap ? "AVP" : ""].filter(Boolean).join(" ");
+    const inner = `${s.at.slice(11, 16).replace(":", "h")}${tag ? `<i>${esc(tag)}</i>` : ""}`;
+    const cls = `t${s.at < now ? " past" : ""}`;
+    return s.tk && s.at >= now
+      ? `<a class="${cls}" href="${esc(s.tk)}" target="_blank" rel="noopener" title="Réserver">${inner}</a>`
+      : `<span class="${cls}">${inner}</span>`;
+  }
+
+  function renderTimeline(shows, now) {
+    $("#summary").textContent = `${shows.length} séance${shows.length > 1 ? "s" : ""} · ${dayLabel(state.day, now.slice(0, 10))}`;
+    if (!shows.length) { $("#view").innerHTML = `<div class="empty">Aucune séance ne correspond à ces filtres.</div>`; return; }
+    const byH = new Map();
+    for (const s of shows) { const h = s.at.slice(11, 13); if (!byH.has(h)) byH.set(h, []); byH.get(h).push(s); }
+    $("#view").innerHTML = `<div class="timeline">${[...byH].map(([h, ss]) => `
+      <div class="hour"><div class="h">${h}h</div><ul>${ss.map((s) => {
+        const f = D.films[s.f], tag = [s.v, ...(s.fm || []), s.ap ? "AVP" : ""].filter(Boolean).join(" ");
+        return `<li><span class="tm">${s.at.slice(11, 16).replace(":", "h")}</span><div><span class="who" data-goto="${s.f}">${esc(f.t)}</span>${tag ? ` <span class="badge">${esc(tag)}</span>` : ""}<div class="where">${esc(D.cinemas[s.c].n)}, ${esc(D.cinemas[s.c].v)}${f.rt ? ` · ${esc(f.rt)}` : ""}</div></div></li>`;
+      }).join("")}</ul></div>`).join("")}</div>`;
+  }
+
+  function renderCinemas(shows, now) {
+    const by = new Map();
+    for (const s of shows) {
+      if (!by.has(s.c)) by.set(s.c, new Map());
+      const m = by.get(s.c);
+      if (!m.has(s.f)) m.set(s.f, []);
+      m.get(s.f).push(s);
+    }
+    const ids = Object.keys(D.cinemas).filter((c) => by.has(c));
+    $("#summary").textContent = `${ids.length} cinéma${ids.length > 1 ? "s" : ""} · ${dayLabel(state.day, now.slice(0, 10))}`;
+    if (!ids.length) { $("#view").innerHTML = `<div class="empty">Aucune séance ne correspond à ces filtres.</div>`; return; }
+    $("#view").innerHTML = `<div class="cines">${ids.map((c) => `
+      <section class="cine"><div><h3>${esc(D.cinemas[c].n)}</h3><span class="city">${esc(D.cinemas[c].v)} · ${by.get(c).size} films</span></div>
+        ${[...by.get(c)].sort((a, b) => D.films[a[0]].t.localeCompare(D.films[b[0]].t, "fr")).map(([f, ss]) => `
+          <div class="cf"><span class="n" data-goto="${f}">${esc(D.films[f].t)}</span><div class="times">${ss.map((s) => timeChip(s, now)).join("")}</div></div>`).join("")}
+      </section>`).join("")}</div>`;
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("[data-toggle]")) { e.preventDefault(); e.target.click(); }
+  });
+
+  boot();
+})();
+</script>
