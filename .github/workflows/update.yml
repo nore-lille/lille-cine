@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: { name: github-pages, url: "${{ steps.deploy.outputs.page_url }}" }
     steps:
+      # Toujours partir de la dernière version de main, même si le lancement a attendu son tour
       - uses: actions/checkout@v4
+        with: { ref: main }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - name: Récupérer les séances
@@ -26,7 +28,14 @@ jobs:
           git config user.name "lille-cine"
           git config user.email "lille-cine@users.noreply.github.com"
           git add data.json posters
-          git diff --cached --quiet || { git commit -m "Séances du $(date +%F)" && git push; }
+          git diff --cached --quiet && exit 0
+          git commit -m "Séances du $(date +%F)"
+          # Si main a bougé entre-temps, on rejoue notre commit par-dessus (nos données sont les plus récentes)
+          for i in 1 2 3; do
+            git push && exit 0
+            git pull --rebase -X theirs origin main
+          done
+          exit 1
       - name: Construire le site
         run: |
           mkdir _site
